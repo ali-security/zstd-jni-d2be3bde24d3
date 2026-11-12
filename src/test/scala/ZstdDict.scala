@@ -383,4 +383,41 @@ class ZstdDictSpec extends AnyFlatSpec {
       assert(input.toSeq == output.toSeq)
     }
   }
+
+  lazy val streamDict = train(false)
+
+  def newBufferDecompressingStream(direct: Boolean, compressed: Array[Byte]): BaseZstdBufferDecompressingStreamNoFinalizer =
+    if (direct) {
+      val source = ByteBuffer.allocateDirect(compressed.length)
+      source.put(compressed)
+      source.flip()
+      new ZstdDirectBufferDecompressingStreamNoFinalizer(source)
+    } else {
+      new ZstdBufferDecompressingStreamNoFinalizer(ByteBuffer.wrap(compressed))
+    }
+
+  for (direct <- List(true, false)) {
+    val streamName =
+      if (direct) "ZstdDirectBufferDecompressingStreamNoFinalizer"
+      else "ZstdBufferDecompressingStreamNoFinalizer"
+
+    streamName should "throw on setting parameters on closed stream" in {
+      val compressed = Zstd.compressUsingDict(input, streamDict, 1)
+      val zis = newBufferDecompressingStream(direct, compressed)
+      zis.close
+      assert(!zis.hasRemaining)
+      intercept[IOException] {
+        zis.setLongMax(20)
+      }
+      intercept[IOException] {
+        zis.setDict(streamDict)
+      }
+      val ddict = new ZstdDictDecompress(streamDict)
+      intercept[IOException] {
+        zis.setDict(ddict)
+      }
+      // the dict is not retained by the closed stream
+      ddict.close
+    }
+  }
 }

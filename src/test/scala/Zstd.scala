@@ -897,6 +897,60 @@ class ZstdSpec extends AnyFlatSpec with ScalaCheckPropertyChecks {
     }
   }
 
+  it should s"throw on setting checksum on closed stream" in {
+    val os  = new ByteArrayOutputStream(100)
+    val zos = new ZstdOutputStream(os, 1)
+    // close the frame on flush, so the frame is closed when the stream gets closed
+    zos.setCloseFrameOnFlush(true)
+    zos.write("foo".toArray.map(_.toByte))
+    zos.flush()
+    zos.close()
+    assertThrows[IOException] {
+      zos.setChecksum(true)
+    }
+  }
+
+  it should s"throw on setting parameters on closed stream" in {
+    val os  = new ByteArrayOutputStream(100)
+    val zos = new ZstdOutputStreamNoFinalizer(os, 1)
+    zos.close()
+    assertThrows[IOException] {
+      zos.setLevel(3)
+    }
+    assertThrows[IOException] {
+      zos.setLong(20)
+    }
+    assertThrows[IOException] {
+      zos.setWorkers(0)
+    }
+    assertThrows[IOException] {
+      zos.setDict(Array.fill[Byte](1024)(42))
+    }
+    val cdict = new ZstdDictCompress(Array.fill[Byte](1024)(42), 1)
+    assertThrows[IOException] {
+      zos.setDict(cdict)
+    }
+    // the dict is not retained by the closed stream
+    cdict.close()
+  }
+
+  "ZstdInputStream" should s"throw on setting parameters on closed stream" in {
+    val zis = new ZstdInputStreamNoFinalizer(new ByteArrayInputStream(Array[Byte]()))
+    zis.close()
+    assertThrows[IOException] {
+      zis.setLongMax(20)
+    }
+    assertThrows[IOException] {
+      zis.setDict(Array.fill[Byte](1024)(42))
+    }
+    val ddict = new ZstdDictDecompress(Array.fill[Byte](1024)(42))
+    assertThrows[IOException] {
+      zis.setDict(ddict)
+    }
+    // the dict is not retained by the closed stream
+    ddict.close()
+  }
+
   "ZstdDirectBufferCompressingStream" should s"do nothing on double close but throw on writing on closed stream" in {
     val os  = ByteBuffer.allocateDirect(100)
     val zos = new ZstdDirectBufferCompressingStream(os, 1)
