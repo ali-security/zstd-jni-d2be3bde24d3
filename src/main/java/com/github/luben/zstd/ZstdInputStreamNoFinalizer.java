@@ -37,6 +37,7 @@ public class ZstdInputStreamNoFinalizer extends FilterInputStream {
     private boolean isContinuous = false;
     private boolean frameFinished = true;
     private boolean isClosed = false;
+    private ZstdDictDecompress active_dict = null;
 
     /* JNI methods */
     public static native long recommendedDInSize();
@@ -103,15 +104,22 @@ public class ZstdInputStreamNoFinalizer extends FilterInputStream {
         if (isClosed) {
             throw new IOException("Stream closed");
         }
-        dict.acquireSharedLock();
-        try {
-            int size = Zstd.loadFastDictDecompress(stream, dict);
-            if (Zstd.isError(size)) {
-                throw new ZstdIOException(size);
-            }
-        } finally {
-            dict.releaseSharedLock();
+        if (dict != null) {
+            dict.acquireSharedLock();
         }
+        int size = Zstd.loadFastDictDecompress(stream, dict);
+        if (Zstd.isError(size)) {
+            if (dict != null) {
+                dict.releaseSharedLock();
+            }
+            throw new ZstdIOException(size);
+        }
+        // release the shared lock on the previously used dict (if any)
+        if (active_dict != null) {
+            active_dict.releaseSharedLock();
+        }
+        // keep the dict alive so it's not garbage collected
+        active_dict = dict;
         return this;
     }
 
@@ -265,6 +273,10 @@ public class ZstdInputStreamNoFinalizer extends FilterInputStream {
     public synchronized void close() throws IOException {
         if (isClosed) {
             return;
+        }
+        if (active_dict != null) {
+            active_dict.releaseSharedLock();
+            active_dict = null;
         }
         isClosed = true;
         bufferPool.release(srcByteBuffer);
