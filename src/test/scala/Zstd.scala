@@ -1122,6 +1122,36 @@ class ZstdSpec extends AnyFlatSpec with ScalaCheckPropertyChecks {
     assert(zis.read(buf, 0, 1) == -1)
   }
 
+  "ZstdInputStream.read(buf, offset, len)" should "reject a negative len" in {
+    val compressed = Zstd.compress(Array.fill[Byte](1000)(42))
+    val zis = new ZstdInputStream(new ByteArrayInputStream(compressed))
+    val buf = new Array[Byte](100)
+    assertThrows[IndexOutOfBoundsException] {
+      zis.read(buf, 0, -1)
+    }
+    assertThrows[IndexOutOfBoundsException] {
+      zis.read(buf, 10, Int.MinValue)
+    }
+    assert(zis.read(buf, 0, 100) == 100)
+    assert(buf.forall(_ == 42))
+    zis.close()
+  }
+
+  "ZstdInputStreamNoFinalizer.read(buf, offset, len)" should "reject a negative len" in {
+    val compressed = Zstd.compress(Array.fill[Byte](1000)(42))
+    val zis = new ZstdInputStreamNoFinalizer(new ByteArrayInputStream(compressed))
+    val buf = new Array[Byte](100)
+    assertThrows[IndexOutOfBoundsException] {
+      zis.read(buf, 0, -1)
+    }
+    assertThrows[IndexOutOfBoundsException] {
+      zis.readInternal(buf, 0, -1)
+    }
+    assert(zis.read(buf, 0, 100) == 100)
+    assert(buf.forall(_ == 42))
+    zis.close()
+  }
+
   "RecyclingBufferPool" should "recycle buffers" in {
     val pool = RecyclingBufferPool.INSTANCE
     val largeBuf1 = pool.get(10)
