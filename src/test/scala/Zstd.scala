@@ -1291,4 +1291,13 @@ class ZstdSpec extends AnyFlatSpec with ScalaCheckPropertyChecks {
     assert(isGeneric(Zstd.decompressedDirectByteBufferSize(buf, -2000000000, 16)))
     assert(isGeneric(Zstd.decompressedDirectByteBufferSize(buf, Int.MinValue, 16, true)))
   }
+
+  "Zstd.decompressedSize" should "reject negative or overflowing offsets and sizes" in {
+    val src = Zstd.compress(Array.fill[Byte](64)(1))
+    for ((pos, size) <- List((-1, 4), (0, -1), (1, Int.MaxValue))) {
+      intercept[ArrayIndexOutOfBoundsException] {
+        Zstd.decompressedSize(src, pos, size, false)
+      }
+    }
+  }
 }
