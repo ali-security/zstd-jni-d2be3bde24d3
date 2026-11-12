@@ -1300,4 +1300,12 @@ class ZstdSpec extends AnyFlatSpec with ScalaCheckPropertyChecks {
       }
     }
   }
+
+  "Zstd.trainFromBuffer" should "reject FASTCOVER training samples that sum to fewer than 8 bytes" in {
+    // 12 samples: FASTCOVER trains on the first 9, which sum to 0 bytes (< 8)
+    val samples = Array.fill[Array[Byte]](12)(Array[Byte]())
+    assert(Zstd.isError(Zstd.trainFromBuffer(samples, new Array[Byte](1024), false)))
+    val direct = ByteBuffer.allocateDirect(12)
+    assert(Zstd.isError(Zstd.trainFromBufferDirect(direct, Array.fill(12)(0), ByteBuffer.allocateDirect(1024), false)))
+  }
 }

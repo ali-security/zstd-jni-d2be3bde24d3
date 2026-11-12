@@ -25,6 +25,17 @@ JNIEXPORT jlong Java_com_github_luben_zstd_Zstd_trainFromBuffer
         samples_sizes[i] = length;
         samples_buffer_size += length;
     }
+    if (legacy != JNI_TRUE) {
+        // FASTCOVER trains on the first ~75% of samples (d defaults to 8); if those sum to
+        // fewer than 8 bytes, nbDmers underflows in the vendored fastcover.c (meta/zstd#4499).
+        jsize nb_train = (jsize) (num_samples * 0.75);
+        size_t train_size = 0;
+        for (jsize i = 0; i < nb_train; i++) train_size += samples_sizes[i];
+        if (train_size < 8) {
+            size = -ZSTD_error_GENERIC;
+            goto E2;
+        }
+    }
     void *samples_buffer = malloc(samples_buffer_size);
     if (!samples_buffer) {
         jclass eClass = (*env)->FindClass(env, "Ljava/lang/OutOfMemoryError;");
@@ -95,6 +106,17 @@ JNIEXPORT jlong Java_com_github_luben_zstd_Zstd_trainFromBufferDirect
     }
     (*env)->ReleasePrimitiveArrayCritical(env, sampleSizes, sample_sizes_array, JNI_ABORT);
     if (total_samples_size > samples_capacity) goto E2;
+    if (legacy != JNI_TRUE) {
+        // FASTCOVER trains on the first ~75% of samples (d defaults to 8); if those sum to
+        // fewer than 8 bytes, nbDmers underflows in the vendored fastcover.c (meta/zstd#4499).
+        jsize nb_train = (jsize) (num_samples * 0.75);
+        size_t train_size = 0;
+        for (jsize i = 0; i < nb_train; i++) train_size += samples_sizes[i];
+        if (train_size < 8) {
+            size = -ZSTD_error_GENERIC;
+            goto E2;
+        }
+    }
 
     if (legacy == JNI_TRUE) {
         ZDICT_legacy_params_t params;
