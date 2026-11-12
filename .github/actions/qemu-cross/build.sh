@@ -2,6 +2,7 @@
 
 set -e
 
+sh ./.github/ubuntu-apt-mirror.sh
 apt-get update
 apt-get install -y gcc
 
